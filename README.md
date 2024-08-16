@@ -1,4 +1,4 @@
-MCDReforged Plugin Template
+PerimeterProducer
 -----
 
 A template for MCDReforged (>=2.x) plugin
