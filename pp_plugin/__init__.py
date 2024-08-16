@@ -1,4 +1,5 @@
 from mcdreforged.api.all import *
+import time
 
 PLUGIN_METADATA = {
     'id': 'pp',
@@ -9,36 +10,77 @@ PLUGIN_METADATA = {
     'link': 'https://github.com/Walkersifolia/PerimeterProducer'
 }
 
+DELAY = 0.1
+Prefix = "!!pp"
+CHUNK = 16
+ABORT = False
+WORKING = False
+NEED_COMMIT = False
+
+p1 = None
+p2 = None
+p3 = None
+p4 = None
+
+def on_info(server, info):
+    global Prefix, DELAY
+    global CHUNK, ABORT, WORKING, NEED_COMMIT
+    global p1, p2, p3, p4
+    content = info.content
+    cmd = content.split()
+    if len(cmd) == 0 or cmd[0] != Prefix:
+        return
+    del cmd[0]
+    # !!perimeter abort
+    if len(cmd) == 1 and cmd[0] == "abort":
+        if not WORKING and not NEED_COMMIT:
+            server.reply(info, "§c没有需要中断的操作")
+            return
+        ABORT = True
+        NEED_COMMIT = False
+        server.reply(info, "§c终止操作！")
+        return
+    # !!perimeter abort <length> <width>
+    if len(cmd) == 3 and cmd[0] == "make":
+        if WORKING:
+            server.reply(info, "§c当前正在清理，请等待清理结束！")
+        try:
+            p1 = -int(cmd[1])/2 * CHUNK
+            p2 = int(cmd[1])/2 * CHUNK
+            p3 = -int(cmd[2])/2 * CHUNK
+            p4 = int(cmd[2])/2 * CHUNK
+        except:
+            server.reply(info, "§c你输入的不是数字！")
+        
+        NEED_COMMIT = True
+        server.reply(info, "§a请输入§6{} commit§a确认操作！".format(Prefix))
+
+    if len(cmd) == 1 and cmd[0] == "commit":
+
+        if not NEED_COMMIT:
+            server.reply(info, "§c没有需要确认的操作")
+            return
+
+        server.say("§a开始操作！请在§c原地§a耐心等待，§c不要移动")
+        NEED_COMMIT = False
+
+        server.execute("carpet fillLimit 2000000")
+        server.execute("carpet fillUpdates false")
+        
+        WORKING = True
+        for i in range(0, 255):
+            if ABORT:
+                ABORT = False
+                WORKING = False
+                break
+            y = 255 - i
+            command = "execute at {} run fill ~{} {} ~{} ~{} {} ~{} air".format(info.player, p1, y, p3, p2, y, p4)
+            server.say("正在替换第{}层".format(y))
+            time.sleep(DELAY)
+            server.execute(command)
+        WORKING = False
+        server.say("§a操作完成！")
+
 def on_load(server: PluginServerInterface, old):
     server.register_help_message('!!pp', '快速生成空置域')
     server.logger.info('插件已加载！')
-
-def on_player_command(server: PluginServerInterface, player: str, command: str):
-    if command.startswith('!!pp'):
-        args = command.split(' ')
-        if len(args) == 3:
-            try:
-                x = int(args[1])
-                y = int(args[2])
-                clear_perimeter(server, player, x, y)
-            except ValueError:
-                server.reply(player, '请输入有效的数字。')
-        else:
-            server.reply(player, '用法：!!pp <x> <y>')
-
-def clear_perimeter(server: PluginServerInterface, player: str, x: int, y: int):
-    player_pos = server.get_player(player).pos
-    half_size = (x - 1) // 2
-    min_x = player_pos.x - half_size * 16
-    max_x = player_pos.x + half_size * 16
-    min_z = player_pos.z - half_size * 16
-    max_z = player_pos.z + half_size * 16
-
-    for i in range(256):
-        for x in range(min_x, max_x, 16):
-            for z in range(min_z, max_z, 16):
-                server.execute(f'fill {x} {i} {z} {x + 15} {i} {z + 15} minecraft:air')
-
-    server.reply(player, f'已清理以你当前位置为中心的 {x}x{y} 区块的空置区域。')
-
-# 你可以根据需要添加更多函数或逻辑
